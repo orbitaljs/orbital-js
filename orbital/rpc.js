@@ -33,6 +33,11 @@ RPC.prototype.start = function(pipe) {
 		var server = net.createServer().listen('\\\\?\\pipe\\' + pipe, function(c) {
 			console.log("Connected to " + pipe);
 			this.__writer = c;
+
+			while (this.__queuedPackets.length > 0) {
+				var packet = this.__queuedPackets.shift();
+				this.__writePacket(packet);
+			}
 		}.bind(this));
 
 		server.on('data', function(data) {
