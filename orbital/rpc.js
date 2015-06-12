@@ -2,6 +2,7 @@ var util = require('util');
 var os = require('os');
 var fs = require('fs');
 var child_process = require('child_process');
+var net = require('net');
 
 var SYNC_BYTE = new Buffer([0xff]);
 
@@ -23,8 +24,20 @@ RPC.prototype.getName = function() {
 }
 
 RPC.prototype.start = function(pipe) {
-	if (os.platform() == "windows") {
-		// net.server
+	if (/^win/.test(os.platform())) {
+		if (pipe === undefined) {
+			pipe = require('crypto').randomBytes(32).toString('hex');
+		}
+		this.__name = pipe;
+
+		var server = net.createServer().listen('\\\\?\\pipe\\' + pipe, function(c) {
+			console.log("Connected to " + pipe);
+			this.__writer = c;
+		}.bind(this));
+
+		server.on('data', function(data) {
+			this.__onPacketDataReceived(data);
+		}.bind(this));
 	} else {
 		if (pipe === undefined) {
 			pipe = os.tmpdir() + "/ipc" + require('crypto').randomBytes(32).toString('hex');

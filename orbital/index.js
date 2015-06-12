@@ -4,6 +4,7 @@ var process = require('process');
 var fs = require('fs');
 var app = require('app');
 var child_process = require('child_process');
+var os = require('os');
 
 var initialized = false;
 
@@ -36,55 +37,60 @@ function initialize(options) {
 
 	// If we've been passed the PIPE environment variable, that means we're in inverted mode
 	if (!process.env.PIPE) {
-
 		console.log("Initializing JVM");
-		try {
-			var jvmPath = path.join(module.filename, "../../../../Java/bin/java");
+		var isWindows = /^win/.test(os.platform());
 
-			var jarFolder = path.join(module.filename, "../../../../Java");
+		try {
+			var javaRoot = isWindows
+				? "../../../../java"
+				: "../../../../Java";
+
+			var jarFolder = path.join(module.filename, javaRoot);
+			var jvmPath = path.join(jarFolder, isWindows ? "bin/java.exe" : "bin/java");
 			var files = fs.readdirSync(jarFolder);
 			var cp = [];
 			files.forEach(function(file) {
 				if (file.indexOf('.jar') != -1) {
-					cp.push(jarFolder + "/" + file);
+					cp.push(path.join(jarFolder, file));
 				}
 			});
 
 			var opts = { 
 				env: process.env,
-				stdio: ['ignore', process.stdout, process.stderr]
+				stdio: isWindows ? ['ignore', 'pipe', 'pipe'] : ['ignore', process.stdout, process.stderr]
 			};
 
 			var args = [ 
 				// "-verbose:class", 
-				"-cp", cp.join(':'), 
+				"-cp", cp.join(isWindows ? ';' : ':'), 
 				'-DPIPE=' + rpc.getName(),
 				'-DMAIN=' + options.main,
 				"com.codano.orbital.OrbitalAppMain"
 			];
 
-			console.log(jvmPath, args, opts);
+			// if (isWindows) {
+			// 	args.unshift(jvmPath);
+			// 	args.unshift("/c");
+			// 	args.unshift("/d");
 
-			child_process.spawn(jvmPath, args, opts);
+			// 	jvmPath = "cmd";				
+			// }
 
-			// var node = process.platform == 'darwin' 
-			// 	? path.resolve(process.resourcesPath, '..', 'Frameworks',
-   //                   'Electron Helper.app', 'Contents', 'MacOS', 'Electron Helper')
-			// 	: process.execPath;
+			var jvm = child_process.spawn(jvmPath, args, opts);
+			if (isWindows) {
+				jvm.stdout.on('data', function (data) {
+					console.log(data.toString('utf-8'));
+				});
+				jvm.stderr.on('data', function (data) {
+					console.log(data.toString('utf-8'));
+				});
+			}
 
-			// console.log(node);
-			// var opts = { 
-			// 	env: {},
-			// 	stdio: ['ignore', process.stdout, process.stderr]
-			// };
-			// opts.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = 1;
-			// opts.env['PIPE'] = rpc.getName();
-			// opts.env['MAIN'] = options.main;
+			console.log(jvmPath, args);
 
-			// var shim = path.resolve(__dirname, 'shim.js');
-			// console.log(node, shim);
-
-			// var jvm = child_process.spawn(node, [ shim ], opts);
+			jvm.on('close', function(code) {
+				console.log("JVM died with code " + code);
+			});
 		} catch (e) {
 			console.log("Failed to initialize the JVM", e);
 			throw e;
