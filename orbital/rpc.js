@@ -20,7 +20,7 @@ var RPC = function() {
 }
 
 RPC.prototype.getName = function() {
-	return this.__name;
+	return this.__pipe.getName();
 }
 
 RPC.prototype.start = function(pipe) {

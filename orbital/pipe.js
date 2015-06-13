@@ -71,6 +71,10 @@ Pipe.__generateEndpoint = function() {
 	return require('crypto').randomBytes(32).toString('hex');
 }
 
+Pipe.prototype.getName = function() {
+	return this.__name;
+}
+
 Pipe.prototype.__openWindows = function() {
 	console.log("RPC pipe (named pipe):\n" + this.__name);
 	var addr = '\\\\?\\pipe\\' + this.__name;
