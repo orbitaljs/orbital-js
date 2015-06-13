@@ -76,28 +76,31 @@ Pipe.prototype.__openWindows = function() {
 	var addr = '\\\\?\\pipe\\' + this.__name;
 
 	if (this.__mode == SERVER) {
-		var server = net.createServer(function(c) {
+		this.__server = net.createServer(function(c) {
 			console.log("Connected to named pipe as server");
-			this.__writer = c;
-			this.__drainWriteQueue();
-			this.emit('open');
-
-			c.on('data', function(data) {
-				this.push(data);
-			}.bind(this));
+			this.__connectWindows(c);
 		}.bind(this)).listen(addr);
 	} else {
 		var client = net.createConnection({ path: addr }, function() {
 			console.log("Connected to named pipe as client");
-			this.__writer = client;
-			this.__drainWriteQueue();
-			this.emit('open');
-		}.bind(this));
-
-		client.on('data', function(data) {
-			this.push(data);
+			this.__connectWindows(client);
 		}.bind(this));
 	}
+}
+
+Pipe.prototype.__connectWindows = function(client) {
+	this.__client = client;
+	this.__writer = client;
+	this.__drainWriteQueue();
+	this.emit('open');
+
+	client.on('data', function(data) {
+		this.push(data);
+	}.bind(this));
+	
+	client.on('end', function() {
+		this.close();
+	}.bind(this));
 }
 
 Pipe.prototype.__openPosix = function() {
@@ -131,7 +134,7 @@ Pipe.prototype.__openPosix = function() {
 		this.__writeFd = fd;
 		this.__writer = fs.createWriteStream(null, { fd: fd });
 		this.__writer.on('end', function() {
-			this.__die("Write pipe closed");
+			this.close();
 		});
 
 		this.__drainWriteQueue();
@@ -152,10 +155,22 @@ Pipe.prototype.close = function() {
 	if (!this.__open)
 		return;
 
-	fs.closeSync(this.__writeFd);
-	delete this.__writeFd;
-	fs.closeSync(this.__readFd);
-	delete this.__readFd;
+	if (this.__writeFd !== undefined) {
+		fs.closeSync(this.__writeFd);
+		delete this.__writeFd;
+	}
+	if (this.__readFd !== undefined) {
+		fs.closeSync(this.__readFd);
+		delete this.__readFd;
+	}
+	if (this.__client !== undefined) {
+		this.__client.destroy();
+		delete this.__client;
+	}
+	if (this.__server !== undefined) {
+		this.__server.close();
+		delete this.__server;
+	}
 
 	this.emit('end');
 }
@@ -240,6 +255,10 @@ if (require.main === module) {
 			}, 500);
 		});
 	}
+
+	pipe.on('error', function(err) {
+		console.log('error: ' + err);
+	});
 
 	pipe.on('end', function() {
 		console.log("END");
