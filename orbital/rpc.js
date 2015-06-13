@@ -1,8 +1,8 @@
 var util = require('util');
-var os = require('os');
 var fs = require('fs');
 var child_process = require('child_process');
 var net = require('net');
+var process = require('argv');
 
 var SYNC_BYTE = new Buffer([0xff]);
 
@@ -16,7 +16,6 @@ var RPC = function() {
 	this.__endpoints = {};
 	this.__callbacks = {};
 	this.__readBuffer = new Buffer(1024 * 1024);
-	this.__queuedPackets = [];
 }
 
 RPC.prototype.getName = function() {
@@ -24,69 +23,18 @@ RPC.prototype.getName = function() {
 }
 
 RPC.prototype.start = function(pipe) {
-	if (/^win/.test(os.platform())) {
-		if (pipe === undefined) {
-			pipe = require('crypto').randomBytes(32).toString('hex');
-		}
-		this.__name = pipe;
+	if (pipe === undefined)
+		this.__pipe = Pipe.create();
+	else
+		this.__pipe = Pipe.open(pipe);
 
-		var server = net.createServer().listen('\\\\?\\pipe\\' + pipe, function(c) {
-			console.log("Connected to " + pipe);
-			this.__writer = c;
+	this.__pipe.on('data', function(chunk) {
+		this.__onPacketDataReceived(chunk);
+	}.bind(this));
 
-			while (this.__queuedPackets.length > 0) {
-				var packet = this.__queuedPackets.shift();
-				this.__writePacket(packet);
-			}
-		}.bind(this));
-
-		server.on('data', function(data) {
-			this.__onPacketDataReceived(data);
-		}.bind(this));
-	} else {
-		if (pipe === undefined) {
-			pipe = os.tmpdir() + "/ipc" + require('crypto').randomBytes(32).toString('hex');
-		}
-
-		console.log("RPC pipe (fifo): " + pipe);
-
-		this.__name = pipe;
-
-		// On posix environments, the PIPE env variable specifies a folder 
-		// where we create two FIFOs: i and o.
-
-		// Create the FIFOs in a tmp folder
-		fs.mkdirSync(pipe);
-		fs.mkdirSync(pipe + "/tmp");
-
-		// TODO: Move to native module
-		child_process.spawnSync('mkfifo', [pipe + '/tmp/i']);
-		child_process.spawnSync('mkfifo', [pipe + '/tmp/o']);
-
-		fs.renameSync(pipe + "/tmp", pipe + "/fifo");
-
-		// We write to the 'i' pipe
-		fs.open(pipe + "/fifo/i", "w", function(err, fd) {
-			console.log("RPC (i) pipe open");
-			this.__writeFd = fd;
-			this.__writer = fs.createWriteStream(null, { fd: fd });
-			this.__writer.on('end', function() {
-				this.__die("Write pipe closed");
-			});
-
-			while (this.__queuedPackets.length > 0) {
-				var packet = this.__queuedPackets.shift();
-				this.__writePacket(packet);
-			}
-		}.bind(this));
-
-		// We read from the 'o' pipe
-		fs.open(pipe + "/fifo/o", "r", function(err, fd) {
-			console.log("RPC (o) pipe open");
-			this.__readFd = fd;
-			fs.read(fd, this.__readBuffer, 0, this.__readBuffer.length, null, this.__onRead.bind(this));
-		}.bind(this));
-	}
+	this.__pipe.on('end', function() {
+		this.__die("Pipe closed");
+	}.bind(this));
 }
 
 RPC.prototype.registerEndpoint = function(endpoint, fn) {
@@ -278,16 +226,11 @@ RPC.prototype.__onPacketDataReceived = function(chunk) {
 }
 
 RPC.prototype.__writePacket = function(packet) {
-	if (!this.__writer) {
-		this.__queuedPackets.push(packet);
-		return;
-	}
-
-	this.__writer.write(SYNC_BYTE, this.__checkWrite.bind(this));
+	this.__pipe.write(SYNC_BYTE, this.__checkWrite.bind(this));
 
 	var buf = this.__encodePacket(packet);
-	this.__writer.write(buf.length.toString(16) + "\n", this.__checkWrite.bind(this));
-	this.__writer.write(buf, this.__checkWrite.bind(this));
+	this.__pipe.write(buf.length.toString(16) + "\n", this.__checkWrite.bind(this));
+	this.__pipe.write(buf, this.__checkWrite.bind(this));
 }
 
 RPC.prototype.__checkWrite = function(err) {
@@ -296,16 +239,6 @@ RPC.prototype.__checkWrite = function(err) {
 		this.__die("Error writing pipe");
 	}
 }
-
-RPC.prototype.__onRead = function(err, bytesRead, buffer) {
-	// If the pipe closes, abort the entire app
-	if (err || bytesRead == 0) {
-		this.__die("Error reading pipe");
-	}
-
-	this.__onPacketDataReceived(buffer.slice(0, bytesRead));
-	fs.read(this.__readFd, this.__readBuffer, 0, this.__readBuffer.length, null, this.__onRead.bind(this));
-};
 
 RPC.prototype.__die = function(reason) {
 	this.__log("DIE: " + reason);
@@ -323,3 +256,10 @@ RPC.prototype.__log = function() {
 var rpc = new RPC();
 
 module.exports = rpc;
+
+if (require.main === module) {
+	var pipe = process.argv[1];
+	if (pipe) {
+		
+	}
+}
