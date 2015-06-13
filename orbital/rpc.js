@@ -2,7 +2,8 @@ var util = require('util');
 var fs = require('fs');
 var child_process = require('child_process');
 var net = require('net');
-var process = require('argv');
+
+var Pipe = require('./Pipe');
 
 var SYNC_BYTE = new Buffer([0xff]);
 
@@ -258,8 +259,26 @@ var rpc = new RPC();
 module.exports = rpc;
 
 if (require.main === module) {
-	var pipe = process.argv[1];
-	if (pipe) {
-		
+	var pipeName = process.argv[2];
+	var rpc = new RPC();
+	rpc.start(pipeName);
+
+	if (pipeName) {
+		rpc.registerEndpoint('ping', function() {
+			console.log("PING");
+			setTimeout(function() {
+				rpc.call("pong");
+			}, 500);
+		});
+	} else {
+		rpc.registerEndpoint('pong', function() {
+			console.log("PONG");
+			setTimeout(function() {
+				rpc.call("ping");
+			}, 500);
+		});
+
+		// Start it off
+		rpc.call("ping");
 	}
 }

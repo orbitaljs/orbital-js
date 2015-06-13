@@ -130,7 +130,7 @@ Pipe.prototype.__openPosix = function() {
 
 	// We write to the 'i' pipe in server mode and 'o' pipe in client mode
 	fs.open(path.join(fifo, this.__mode == SERVER ? 'i' : 'o'), "w", function(err, fd) {
-		console.log("RPC write pipe open");
+		console.log("Write pipe open");
 		this.__writeFd = fd;
 		this.__writer = fs.createWriteStream(null, { fd: fd });
 		this.__writer.on('end', function() {
@@ -143,7 +143,7 @@ Pipe.prototype.__openPosix = function() {
 
 	// We read from the 'o' pipe in server mode and the 'i' pipe in client mode
 	fs.open(path.join(fifo, this.__mode == CLIENT ? 'i' : 'o'), "r", function(err, fd) {
-		console.log("RPC read pipe open");
+		console.log("Read pipe open");
 		this.__readFd = fd;
 		fs.read(this.__readFd, this.__readBuffer, 0, this.__readBuffer.length, null, this.__onRead.bind(this));
 		this.__checkOpenPosix();
