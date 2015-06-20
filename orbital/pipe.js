@@ -100,6 +100,7 @@ Pipe.prototype.__connectWindows = function(client) {
 
 	client.on('data', function(data) {
 		this.push(data);
+		client.resume();
 	}.bind(this));
 	
 	client.on('end', function() {
@@ -133,8 +134,9 @@ Pipe.prototype.__openPosix = function() {
 	}
 
 	// We write to the 'i' pipe in server mode and 'o' pipe in client mode
-	fs.open(path.join(fifo, this.__mode == SERVER ? 'i' : 'o'), "w", function(err, fd) {
-		console.log("Write pipe open");
+	var w = this.__mode == SERVER ? 'i' : 'o';
+	fs.open(path.join(fifo, w), "w", function(err, fd) {
+		console.log("Write pipe open: " + w);
 		this.__writeFd = fd;
 		this.__writer = fs.createWriteStream(null, { fd: fd });
 		this.__writer.on('end', function() {
@@ -146,8 +148,9 @@ Pipe.prototype.__openPosix = function() {
 	}.bind(this));
 
 	// We read from the 'o' pipe in server mode and the 'i' pipe in client mode
-	fs.open(path.join(fifo, this.__mode == CLIENT ? 'i' : 'o'), "r", function(err, fd) {
-		console.log("Read pipe open");
+	var r = this.__mode == CLIENT ? 'i' : 'o';
+	fs.open(path.join(fifo, r), "r", function(err, fd) {
+		console.log("Read pipe open: " + r);
 		this.__readFd = fd;
 		fs.read(this.__readFd, this.__readBuffer, 0, this.__readBuffer.length, null, this.__onRead.bind(this));
 		this.__checkOpenPosix();
@@ -242,7 +245,11 @@ module.exports = Pipe;
 if (require.main === module) {
 	var pipeName = process.argv[2];
 	if (pipeName) {
-		var pipe = Pipe.open(pipeName);
+		if (process.argv[3] == '--server')
+			var pipe = Pipe.openServer(pipeName);
+		else
+			var pipe = Pipe.open(pipeName);
+
 		pipe.on('data', function(buf) {
 			console.log("read: " + buf);
 			setTimeout(function() {

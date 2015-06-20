@@ -227,11 +227,11 @@ RPC.prototype.__onPacketDataReceived = function(chunk) {
 }
 
 RPC.prototype.__writePacket = function(packet) {
-	this.__pipe.write(SYNC_BYTE, this.__checkWrite.bind(this));
-
 	var buf = this.__encodePacket(packet);
-	this.__pipe.write(buf.length.toString(16) + "\n", this.__checkWrite.bind(this));
-	this.__pipe.write(buf, this.__checkWrite.bind(this));
+	var buffer = Buffer.concat([SYNC_BYTE, new Buffer(buf.length.toString(16) + "\n"), buf]);
+	
+	// Write in one fell swoop
+	this.__pipe.write(buffer, this.__checkWrite.bind(this));
 }
 
 RPC.prototype.__checkWrite = function(err) {
