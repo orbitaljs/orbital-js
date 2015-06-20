@@ -23,11 +23,11 @@ RPC.prototype.getName = function() {
 	return this.__pipe.getName();
 }
 
-RPC.prototype.start = function(pipe) {
+RPC.prototype.start = function(pipe, server) {
 	if (pipe === undefined)
 		this.__pipe = Pipe.create();
 	else
-		this.__pipe = Pipe.open(pipe);
+		this.__pipe = server ? Pipe.openServer(pipe) : Pipe.open(pipe);
 
 	this.__pipe.on('data', function(chunk) {
 		this.__onPacketDataReceived(chunk);
@@ -261,7 +261,7 @@ module.exports = rpc;
 if (require.main === module) {
 	var pipeName = process.argv[2];
 	var rpc = new RPC();
-	rpc.start(pipeName);
+	rpc.start(pipeName, false);
 
 	if (pipeName) {
 		rpc.registerEndpoint('ping', function() {

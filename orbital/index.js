@@ -24,7 +24,7 @@ function initialize(options) {
 	try {
 		console.log("Initializing RPC");
 		if (process.env.PIPE)
-			rpc.start(process.env.PIPE);
+			rpc.start(process.env.PIPE, true);
 		else
 			rpc.start();
 	} catch (e) {

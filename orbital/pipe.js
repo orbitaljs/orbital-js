@@ -76,7 +76,7 @@ Pipe.prototype.getName = function() {
 }
 
 Pipe.prototype.__openWindows = function() {
-	console.log("RPC pipe (named pipe):\n" + this.__name);
+	console.log("RPC pipe (named pipe, %s):\n%s", this.__mode, this.__name);
 	var addr = '\\\\?\\pipe\\' + this.__name;
 
 	if (this.__mode == SERVER) {
@@ -109,7 +109,7 @@ Pipe.prototype.__connectWindows = function(client) {
 }
 
 Pipe.prototype.__openPosix = function() {
-	console.log("RPC pipe (fifo): " + this.__name);
+	console.log("RPC pipe (fifo, %s): \n%s", this.__mode, this.__name);
 
 	// On posix environments, the PIPE env variable specifies a folder 
 	// where we create two FIFOs: i and o.
